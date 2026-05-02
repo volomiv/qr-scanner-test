@@ -26,6 +26,8 @@
 
     #start { background: #0a84ff; color: white; }
     #stop { background: #444; color: white; }
+    #copy { background: #2ecc71; color: white; }
+    #clear { background: #b00020; color: white; }
 
     .scanner {
       position: relative;
@@ -70,6 +72,22 @@
       border-radius: 10px;
       min-height: 60px;
       word-break: break-word;
+      cursor: pointer;
+    }
+
+    .history-item {
+      margin-top: 10px;
+      padding: 12px;
+      background: #222;
+      border-radius: 10px;
+      word-break: break-word;
+      cursor: pointer;
+    }
+
+    .history-time {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 6px;
     }
 
     .status {
@@ -94,24 +112,96 @@
 
 <div class="status" id="status">Press Start</div>
 
-<h3>Result:</h3>
+<h3>Latest result:</h3>
 <div class="result" id="result">—</div>
+<button id="copy">Copy Latest Result</button>
+
+<h3>Scan history:</h3>
+<div id="history"></div>
+<button id="clear">Clear History</button>
 
 <script>
 let stream = null;
 let scanning = false;
 let detector = null;
+let latestValue = "";
+
+const STORAGE_KEY = "qr_scanner_history";
 
 const video = document.getElementById("video");
 const scanner = document.getElementById("scanner");
 const result = document.getElementById("result");
+const history = document.getElementById("history");
 const status = document.getElementById("status");
 
 const startBtn = document.getElementById("start");
 const stopBtn = document.getElementById("stop");
+const copyBtn = document.getElementById("copy");
+const clearBtn = document.getElementById("clear");
 
 function setStatus(msg) {
   status.textContent = msg;
+}
+
+function getHistory() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+}
+
+function saveHistory(items) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function renderHistory() {
+  const items = getHistory();
+
+  if (items.length === 0) {
+    history.innerHTML = "<div class='status'>No scanned items yet.</div>";
+    return;
+  }
+
+  history.innerHTML = "";
+
+  items.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "history-item";
+
+    div.innerHTML = `
+      <div class="history-time">${item.time}</div>
+      <div>${escapeHtml(item.value)}</div>
+    `;
+
+    div.onclick = () => copyText(item.value);
+    history.appendChild(div);
+  });
+}
+
+function addToHistory(value) {
+  const items = getHistory();
+
+  items.unshift({
+    value,
+    time: new Date().toLocaleString()
+  });
+
+  saveHistory(items);
+  renderHistory();
+}
+
+async function copyText(text) {
+  if (!text || text === "—") return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus("Copied to clipboard ✔");
+  } catch (e) {
+    setStatus("Copy failed: " + e.message);
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function stopCamera(msg = "Stopped") {
@@ -139,8 +229,13 @@ async function scanLoop() {
 
     if (codes.length > 0) {
       const value = codes[0].rawValue;
+
+      latestValue = value;
       result.textContent = value;
-      stopCamera("QR detected ✔");
+
+      addToHistory(value);
+      stopCamera("QR detected ✔ Camera closed.");
+
       return;
     }
   } catch (e) {}
@@ -156,6 +251,7 @@ async function startScan() {
     }
 
     const formats = await BarcodeDetector.getSupportedFormats();
+
     if (!formats.includes("qr_code")) {
       setStatus("QR not supported");
       return;
@@ -186,6 +282,19 @@ async function startScan() {
 
 startBtn.onclick = startScan;
 stopBtn.onclick = () => stopCamera();
+
+copyBtn.onclick = () => copyText(latestValue);
+result.onclick = () => copyText(latestValue);
+
+clearBtn.onclick = () => {
+  localStorage.removeItem(STORAGE_KEY);
+  latestValue = "";
+  result.textContent = "—";
+  renderHistory();
+  setStatus("History cleared.");
+};
+
+renderHistory();
 </script>
 
 </body>
