@@ -1,102 +1,112 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>QR Scanner</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QR Scanner</title>
 
-  <style>
-    body {
-      font-family: system-ui;
-      padding: 20px;
-      background: #111;
-      color: #fff;
-    }
+<style>
+body {
+  font-family: system-ui;
+  padding: 20px;
+  background: #111;
+  color: #fff;
+}
 
-    button {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      margin: 6px 0;
-      border: none;
-      border-radius: 10px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+button {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  margin: 6px 0;
+  border: none;
+  border-radius: 10px;
+  font-weight: bold;
+  cursor: pointer;
+}
 
-    #start { background: #0a84ff; color: white; }
-    #stop { background: #444; color: white; }
-    #copy { background: #2ecc71; color: white; }
-    #clear { background: #b00020; color: white; }
+#start { background: #0a84ff; color: white; }
+#stop { background: #444; color: white; }
+#copy { background: #2ecc71; color: white; }
+#clear { background: #b00020; color: white; }
 
-    .scanner {
-      position: relative;
-      margin-top: 15px;
-      display: none;
-      border-radius: 12px;
-      overflow: hidden;
-    }
+.scanner {
+  position: relative;
+  margin-top: 15px;
+  display: none;
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-    video {
-      width: 100%;
-      display: block;
-    }
+video { width: 100%; }
 
-    .frame {
-      position: absolute;
-      inset: 15%;
-      border: 3px solid white;
-      border-radius: 12px;
-      box-shadow: 0 0 0 999px rgba(0,0,0,0.4);
-    }
+.frame {
+  position: absolute;
+  inset: 15%;
+  border: 3px solid white;
+  border-radius: 12px;
+  box-shadow: 0 0 0 999px rgba(0,0,0,0.4);
+}
 
-    .line {
-      position: absolute;
-      left: 10%;
-      right: 10%;
-      height: 3px;
-      background: lime;
-      box-shadow: 0 0 10px lime;
-      animation: scan 1.5s infinite;
-    }
+.line {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  background: lime;
+  animation: scan 1.5s infinite;
+}
 
-    @keyframes scan {
-      0% { top: 20%; }
-      100% { top: 80%; }
-    }
+@keyframes scan {
+  0% { top: 20%; }
+  100% { top: 80%; }
+}
 
-    .result {
-      margin-top: 15px;
-      padding: 12px;
-      background: #222;
-      border-radius: 10px;
-      min-height: 60px;
-      word-break: break-word;
-      cursor: pointer;
-    }
+.swipe-wrap {
+  position: relative;
+  overflow: hidden;
+  margin-top: 10px;
+}
 
-    .history-item {
-      margin-top: 10px;
-      padding: 12px;
-      background: #222;
-      border-radius: 10px;
-      word-break: break-word;
-      cursor: pointer;
-    }
+.swipe-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  background: #0a84ff;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  z-index: 1;
+}
 
-    .history-time {
-      font-size: 12px;
-      color: #aaa;
-      margin-bottom: 6px;
-    }
+.item {
+  background: #222;
+  padding: 12px;
+  border-radius: 10px;
+  word-break: break-word;
+  transform: translateX(0);
+  transition: transform 0.2s ease;
+  position: relative;
+  z-index: 2;
+}
 
-    .status {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #aaa;
-    }
-  </style>
+.history-time {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+.status {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #aaa;
+}
+</style>
 </head>
+
 <body>
 
 <h2>QR Scanner</h2>
@@ -112,12 +122,13 @@
 
 <div class="status" id="status">Press Start</div>
 
-<h3>Latest result:</h3>
-<div class="result" id="result">—</div>
-<button id="copy">Copy Latest Result</button>
+<h3>Latest:</h3>
+<div id="latest"></div>
+<button id="copy">Copy Latest</button>
 
-<h3>Scan history:</h3>
+<h3>History:</h3>
 <div id="history"></div>
+
 <button id="clear">Clear History</button>
 
 <script>
@@ -130,128 +141,125 @@ const STORAGE_KEY = "qr_scanner_history";
 
 const video = document.getElementById("video");
 const scanner = document.getElementById("scanner");
-const result = document.getElementById("result");
-const history = document.getElementById("history");
+const historyEl = document.getElementById("history");
+const latestEl = document.getElementById("latest");
 const status = document.getElementById("status");
-
-const startBtn = document.getElementById("start");
-const stopBtn = document.getElementById("stop");
-const copyBtn = document.getElementById("copy");
-const clearBtn = document.getElementById("clear");
 
 function setStatus(msg) {
   status.textContent = msg;
+}
+
+function isLink(v) {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch { return false; }
+}
+
+function openLink(v) {
+  if (!isLink(v)) {
+    setStatus("Not a link");
+    return;
+  }
+  window.open(v, "_blank");
+}
+
+function copyText(v) {
+  if (!v) return;
+  navigator.clipboard.writeText(v);
+  setStatus("Copied ✔");
 }
 
 function getHistory() {
   return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 }
 
-function saveHistory(items) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-}
-
-function renderHistory() {
-  const items = getHistory();
-
-  if (items.length === 0) {
-    history.innerHTML = "<div class='status'>No scanned items yet.</div>";
-    return;
-  }
-
-  history.innerHTML = "";
-
-  items.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "history-item";
-
-    div.innerHTML = `
-      <div class="history-time">${item.time}</div>
-      <div>${escapeHtml(item.value)}</div>
-    `;
-
-    div.onclick = () => copyText(item.value);
-    history.appendChild(div);
-  });
+function saveHistory(h) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(h));
 }
 
 function addToHistory(value) {
-  const items = getHistory();
+  const h = getHistory();
+  h.unshift({ value, time: new Date().toLocaleString() });
+  saveHistory(h);
+  render();
+}
 
-  items.unshift({
-    value,
-    time: new Date().toLocaleString()
+function createSwipeItem(html, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "swipe-wrap";
+
+  const btn = document.createElement("div");
+  btn.className = "swipe-btn";
+  btn.textContent = "Open";
+  btn.onclick = () => openLink(value);
+
+  const item = document.createElement("div");
+  item.className = "item";
+  item.innerHTML = html;
+  item.onclick = () => copyText(value);
+
+  let startX = 0;
+  let currentX = 0;
+
+  item.addEventListener("touchstart", e => {
+    startX = e.touches[0].clientX;
   });
 
-  saveHistory(items);
-  renderHistory();
-}
+  item.addEventListener("touchmove", e => {
+    currentX = e.touches[0].clientX;
+    let dx = currentX - startX;
 
-async function copyText(text) {
-  if (!text || text === "—") return;
-
-  try {
-    await navigator.clipboard.writeText(text);
-    setStatus("Copied to clipboard ✔");
-  } catch (e) {
-    setStatus("Copy failed: " + e.message);
-  }
-}
-
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function stopCamera(msg = "Stopped") {
-  scanning = false;
-
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-  }
-
-  video.srcObject = null;
-  scanner.style.display = "none";
-
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-
-  setStatus(msg);
-}
-
-async function scanLoop() {
-  if (!scanning) return;
-
-  try {
-    const codes = await detector.detect(video);
-
-    if (codes.length > 0) {
-      const value = codes[0].rawValue;
-
-      latestValue = value;
-      result.textContent = value;
-
-      addToHistory(value);
-      stopCamera("QR detected ✔ Camera closed.");
-
-      return;
+    if (dx < 0) {
+      item.style.transform = `translateX(${Math.max(dx, -120)}px)`;
     }
-  } catch (e) {}
+  });
 
-  requestAnimationFrame(scanLoop);
+  item.addEventListener("touchend", () => {
+    let dx = currentX - startX;
+
+    if (dx < -80 && isLink(value)) {
+      item.style.transform = "translateX(-120px)";
+    } else {
+      item.style.transform = "translateX(0)";
+      if (dx < -80) setStatus("Not a link");
+    }
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(item);
+
+  return wrap;
+}
+
+function render() {
+  const h = getHistory();
+
+  historyEl.innerHTML = "";
+  latestEl.innerHTML = "";
+
+  if (latestValue) {
+    const latest = createSwipeItem(latestValue, latestValue);
+    latestEl.appendChild(latest);
+  }
+
+  h.forEach(i => {
+    const el = createSwipeItem(
+      `<div class="history-time">${i.time}</div>${i.value}`,
+      i.value
+    );
+    historyEl.appendChild(el);
+  });
 }
 
 async function startScan() {
   try {
     if (!("BarcodeDetector" in window)) {
-      setStatus("Not supported on this browser");
+      setStatus("Not supported");
       return;
     }
 
     const formats = await BarcodeDetector.getSupportedFormats();
-
     if (!formats.includes("qr_code")) {
       setStatus("QR not supported");
       return;
@@ -265,36 +273,57 @@ async function startScan() {
 
     video.srcObject = stream;
     scanner.style.display = "block";
-
     await video.play();
 
     scanning = true;
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-
     setStatus("Scanning...");
 
     scanLoop();
   } catch (e) {
-    setStatus("Camera error: " + e.message);
+    setStatus("Camera error");
   }
 }
 
-startBtn.onclick = startScan;
-stopBtn.onclick = () => stopCamera();
+function stopCamera(msg="Stopped") {
+  scanning = false;
 
-copyBtn.onclick = () => copyText(latestValue);
-result.onclick = () => copyText(latestValue);
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
 
-clearBtn.onclick = () => {
+  scanner.style.display = "none";
+  setStatus(msg);
+}
+
+async function scanLoop() {
+  if (!scanning) return;
+
+  const codes = await detector.detect(video);
+
+  if (codes.length > 0) {
+    const v = codes[0].rawValue;
+    latestValue = v;
+
+    addToHistory(v);
+    stopCamera("QR detected ✔");
+    return;
+  }
+
+  requestAnimationFrame(scanLoop);
+}
+
+document.getElementById("start").onclick = startScan;
+document.getElementById("stop").onclick = () => stopCamera();
+document.getElementById("copy").onclick = () => copyText(latestValue);
+
+document.getElementById("clear").onclick = () => {
   localStorage.removeItem(STORAGE_KEY);
   latestValue = "";
-  result.textContent = "—";
-  renderHistory();
-  setStatus("History cleared.");
+  render();
 };
 
-renderHistory();
+render();
 </script>
 
 </body>
