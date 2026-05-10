@@ -12,6 +12,7 @@ const latestEl = document.getElementById("latest");
 const status = document.getElementById("status");
 const startButton = document.getElementById("start");
 const stopButton = document.getElementById("stop");
+const exportButton = document.getElementById("export-json");
 
 function setStatus(msg) {
   status.textContent = msg;
@@ -48,9 +49,34 @@ function saveHistory(h) {
 
 function addToHistory(value) {
   const h = getHistory();
-  h.unshift({ value, time: new Date().toLocaleString() });
+  const now = new Date();
+  h.unshift({ value, time: now.toLocaleString() });
   saveHistory(h);
   render();
+}
+
+function exportHistoryAsJson() {
+  const h = getHistory();
+  const payload = h.map((item) => ({ value: item.value, time: item.time }));
+
+  if (!payload.length) {
+    setStatus("No scanned data to export");
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  link.download = `qr-scan-history-${stamp}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  setStatus("JSON exported ✔");
 }
 
 function createSwipeItem(html, value) {
@@ -196,6 +222,7 @@ async function scanLoop() {
 startButton.onclick = startScan;
 stopButton.onclick = () => stopCamera();
 document.getElementById("copy").onclick = () => copyText(latestValue);
+exportButton.onclick = exportHistoryAsJson;
 
 document.getElementById("clear").onclick = () => {
   if (!window.confirm("Delete all scanned items?")) {
