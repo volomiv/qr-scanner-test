@@ -96,3 +96,10 @@ video { width: 100%; }
   font-size: 14px;
   color: #aaa;
 }
+
+.footer {
+  margin-top: 24px;
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+}
