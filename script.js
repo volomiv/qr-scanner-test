@@ -198,6 +198,10 @@ stopButton.onclick = () => stopCamera();
 document.getElementById("copy").onclick = () => copyText(latestValue);
 
 document.getElementById("clear").onclick = () => {
+  if (!window.confirm("Delete all scanned items?")) {
+    return;
+  }
+
   localStorage.removeItem(STORAGE_KEY);
   latestValue = "";
   render();
